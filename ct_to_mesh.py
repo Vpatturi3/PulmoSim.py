@@ -143,9 +143,17 @@ def mask_to_mesh_stl(mask_itk, out_path, decimate_ratio=0.5, smooth_iters=0, ver
 
     # Optional smoothing (Laplacian-like via Taubin needs VTK; skip here to keep deps light)
     # Decimate (0.0=no faces left, 1.0=no decimation; so clamp between 0.1 and 0.95)
-    decimate_ratio = float(np.clip(decimate_ratio, 0.1, 0.95))
-    target_faces = max(int(mesh.faces.shape[0] * decimate_ratio), 1000)
-    mesh = mesh.simplify_quadratic_decimation(target_faces)
+    # Decimate safely: keep between 10%..99% of faces and never exceed current face count
+    n_faces = int(len(mesh.faces))
+    r = float(decimate_ratio)
+
+    # If user asks for ~no decimation or the mesh is small, skip
+    if r >= 0.99 or n_faces < 2000:
+        pass
+    else:
+        r = float(np.clip(r, 0.10, 0.99))          # keep this fraction of faces
+        target = int(max(min(n_faces - 1, n_faces * r), 100))  # [100 .. n_faces-1]
+        mesh = mesh.simplify_quadratic_decimation(target)
 
     # Ensure watertight if possible
     mesh.fill_holes()
