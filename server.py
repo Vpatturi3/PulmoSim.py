@@ -181,6 +181,9 @@ async def process(
             "meta": meta,
         }
         return resp
+    except Exception as e:
+        # Map processing failures (e.g., unreadable inputs) to a 400 with message
+        return JSONResponse(status_code=400, content={"error": str(e)})
     finally:
         if cleanup_dir and os.path.isdir(cleanup_dir):
             try:
@@ -205,26 +208,29 @@ async def run_local(
     if not os.path.exists(dicom_dir) or not os.path.isdir(dicom_dir):
         return JSONResponse(status_code=400, content={"error": "dicom_dir must be an existing directory on the server"})
 
-    seed = None
-    if airway_enabled and None not in (airway_seed_z, airway_seed_y, airway_seed_x):
-        seed = (int(airway_seed_z), int(airway_seed_y), int(airway_seed_x))
+    try:
+        seed = None
+        if airway_enabled and None not in (airway_seed_z, airway_seed_y, airway_seed_x):
+            seed = (int(airway_seed_z), int(airway_seed_y), int(airway_seed_x))
 
-    job_id, lungs_stl, airway_stl, meta = _process_case(
-        input_path=dicom_dir,
-        iso_mm=float(iso),
-        lung_hu_low=int(lung_hu_low),
-        lung_hu_high=int(lung_hu_high),
-        decimate=float(decimate),
-        airway_seed_zyx=seed,
-    )
+        job_id, lungs_stl, airway_stl, meta = _process_case(
+            input_path=dicom_dir,
+            iso_mm=float(iso),
+            lung_hu_low=int(lung_hu_low),
+            lung_hu_high=int(lung_hu_high),
+            decimate=float(decimate),
+            airway_seed_zyx=seed,
+        )
 
-    base = f"/files/{job_id}"
-    return {
-        "job_id": job_id,
-        "lungs_url": f"{base}/lungs.stl",
-        "airway_url": (f"{base}/airway.stl" if airway_stl else None),
-        "meta": meta,
-    }
+        base = f"/files/{job_id}"
+        return {
+            "job_id": job_id,
+            "lungs_url": f"{base}/lungs.stl",
+            "airway_url": (f"{base}/airway.stl" if airway_stl else None),
+            "meta": meta,
+        }
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 
 if __name__ == "__main__":

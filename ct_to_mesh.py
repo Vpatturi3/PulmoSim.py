@@ -234,35 +234,52 @@ def _series_meta(first_file):
     }
 
 
-def _pick_best_series(input_dir):
+def _pick_best_series_recursive(root_dir):
+    """
+    Search for DICOM series recursively starting at root_dir and pick the best one.
+    Prefers CT modality and larger series; avoids SEG/SCOUT/SECONDARY.
+    """
     reader = sitk.ImageSeriesReader()
-    sids = reader.GetGDCMSeriesIDs(input_dir)
-    if not sids:
-        raise RuntimeError(f"No DICOM series found in: {input_dir}")
-
     best = None
-    for sid in sids:
-        files = reader.GetGDCMSeriesFileNames(input_dir, sid)
-        meta = _series_meta(files[0])
-        desc = (meta["SeriesDescription"] or "").lower()
-        modality = (meta["Modality"] or "").upper()
 
-        # score: prefer CT modality, many files, and avoid SEG/SCOUT/SECONDARY
-        score = len(files)
-        if modality == "CT":
-            score += 100000
-        if re.search(r"seg|segmentation|secondary|scout|localizer", desc):
-            score -= 100000
+    for dirpath, _dirnames, _filenames in os.walk(root_dir):
+        try:
+            sids = reader.GetGDCMSeriesIDs(dirpath)
+        except Exception:
+            sids = None
+        if not sids:
+            continue
+        for sid in sids:
+            try:
+                files = reader.GetGDCMSeriesFileNames(dirpath, sid)
+                if not files:
+                    continue
+                meta = _series_meta(files[0])
+                desc = (meta.get("SeriesDescription") or "").lower()
+                modality = (meta.get("Modality") or "").upper()
 
-        cand = {
-            "sid": sid,
-            "files": files,
-            "n": len(files),
-            "meta": meta,
-            "score": score,
-        }
-        if best is None or cand["score"] > best["score"]:
-            best = cand
+                score = len(files)
+                if modality == "CT":
+                    score += 100000
+                if re.search(r"seg|segmentation|secondary|scout|localizer", desc):
+                    score -= 100000
+
+                cand = {
+                    "sid": sid,
+                    "dir": dirpath,
+                    "files": files,
+                    "n": len(files),
+                    "meta": meta,
+                    "score": score,
+                }
+                if best is None or cand["score"] > best["score"]:
+                    best = cand
+            except Exception:
+                # Skip unreadable series in this folder
+                continue
+
+    if best is None:
+        raise RuntimeError(f"No DICOM series found in: {root_dir} (searched recursively)")
     return best
 
 
@@ -273,14 +290,15 @@ def read_volume(input_path):
     """
     if os.path.isdir(input_path):
         try:
-            best = _pick_best_series(input_path)
+            best = _pick_best_series_recursive(input_path)
             files = best["files"]
             meta = best["meta"]
             print(
                 f"[dicom] picked series: {best['n']} slices | "
                 f"Modality={meta['Modality']} | "
                 f"Desc='{meta['SeriesDescription']}' | "
-                f"SliceThickness={meta['SliceThickness']} | PixelSpacing={meta['PixelSpacing']}"
+                f"SliceThickness={meta['SliceThickness']} | PixelSpacing={meta['PixelSpacing']} | "
+                f"dir={best.get('dir', input_path)}"
             )
             reader = sitk.ImageSeriesReader()
             reader.SetFileNames(files)
