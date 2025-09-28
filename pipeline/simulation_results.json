@@ -1,0 +1,17 @@
+{
+  "MDI": {
+    "status": "error",
+    "error": "[Errno 2] No such file or directory: 'icoUncoupledKinematicParcelFoam'",
+    "case_dir": "/Users/devankittelson/Documents/PulmoSim.py/lung_MDI_Case"
+  },
+  "DPI": {
+    "status": "error",
+    "error": "[Errno 2] No such file or directory: 'icoUncoupledKinematicParcelFoam'",
+    "case_dir": "/Users/devankittelson/Documents/PulmoSim.py/lung_DPI_Case"
+  },
+  "Nebulizer": {
+    "status": "error",
+    "error": "[Errno 2] No such file or directory: 'icoUncoupledKinematicParcelFoam'",
+    "case_dir": "/Users/devankittelson/Documents/PulmoSim.py/lung_Nebulizer_Case"
+  }
+}

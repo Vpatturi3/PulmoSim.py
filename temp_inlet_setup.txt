@@ -1,9 +1,0 @@
-For drug delivery simulation, we need:
-1. Inlet patch at trachea (region1) - drug particle entry
-2. All other boundaries remain walls - particle deposition
-3. No outlet - particles deposit on surfaces
-
-This simulates:
-- Inhaled drug particles entering through trachea
-- Particles depositing on airway walls
-- Realistic pharmaceutical inhalation therapy

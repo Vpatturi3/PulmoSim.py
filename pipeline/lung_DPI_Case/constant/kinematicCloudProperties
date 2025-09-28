@@ -1,0 +1,45 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \    /   O peration     | Version:  v11                                   |
+|   \  /    A nd           | Website:  www.OpenFOAM.com                      |
+|    \/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      kinematicCloudProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+kinematicCloud
+{
+    injectionModels
+    (
+        patchInjection
+        {
+            type            patchInjection;
+            patchName       inlet;
+            U0              4.5;
+            duration        0.5;
+            parcelsPerSecond 10000;
+            
+            sizeDistribution
+            {
+                type        logNormal;
+                median      4e-06;
+                sigma       0.4;
+            }
+        }
+    );
+
+    particleProperties
+    {
+        rho             1400;
+    }
+}
+
+// ************************************************************************* //
