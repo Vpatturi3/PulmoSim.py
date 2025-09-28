@@ -4,12 +4,30 @@ on:
   push:
     branches: [ main, vip ]
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # allow the deploy action to push using the provided token
+          persist-credentials: true
+          # fetch full history; helpful for deploy actions when needed
+          fetch-depth: 0
+
+      - name: Debug - show runner environment
+        run: |
+          echo "--- ls workspace ---"
+          ls -la
+          echo "--- node & npm versions ---"
+          node --version || true
+          npm --version || true
+          echo "--- frontend files ---"
+          ls -la frontend || true
 
       - name: Use Node.js
         uses: actions/setup-node@v4
