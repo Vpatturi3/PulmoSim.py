@@ -113,6 +113,14 @@ export default function Home() {
     }
   }, [files, navigate])
 
+  // Auto-process as soon as files are provided via drop or picker
+  useEffect(() => {
+    if (!busy && files.length > 0) {
+      // Fire and forget; navigation will move away on success
+      onSubmit()
+    }
+  }, [files, busy, onSubmit])
+
   const toggleSeeInside = () => setSeeInside(v => !v)
   const toggleAirways = () => setAirwaysVisible(v => !v)
   const toggleAirflow = () => setAirflowVisible(v => !v)
@@ -207,9 +215,6 @@ export default function Home() {
             </div>
           </div>
           <input id="fileInput" ref={inputRef} type="file" accept=".zip,.nii,.nii.gz,.dcm" multiple style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files || []))} />
-          <div className="drop-actions">
-            <button className="btn" disabled={busy} onClick={onSubmit}>{busy ? 'Processing…' : 'Process'}</button>
-          </div>
           {error && <div style={{ color: '#ff8a8a', marginTop: 8 }}>{error}</div>}
         </div>
         
