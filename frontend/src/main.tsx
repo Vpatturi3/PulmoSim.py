@@ -20,7 +20,11 @@ const router = createBrowserRouter([
   { path: '/', element: <Home />, errorElement: <RouteError /> },
   { path: '/demo-viewer', element: <DemoViewer />, errorElement: <RouteError /> },
   { path: '/results', element: <Results />, errorElement: <RouteError /> },
-])
+], {
+  // Use Vite's base (set in vite.config.ts) so client routing works when the
+  // app is hosted under a subpath like /<repo-name>/ on GitHub Pages.
+  basename: import.meta.env.BASE_URL || '/'
+})
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
