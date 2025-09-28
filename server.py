@@ -25,6 +25,7 @@ import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 import trimesh
 import subprocess
+from dotenv import load_dotenv
 
 # Local imports
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -134,6 +135,8 @@ def _process_case(input_path: str,
 
 
 app = FastAPI(title="PulmoSim API", version="0.1.0")
+# Load environment variables from .env if present
+load_dotenv(dotenv_path=os.path.join(CURRENT_DIR, ".env"), override=False)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -35,3 +35,6 @@ results*/
 *.bak
 *.swp
 *.log
+
+# Env files
+.env
