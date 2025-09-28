@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+#
+# One-time setup to make this script executable:
+#   chmod +x "/Users/akhileshbharatham/Documents/GitHub/PulmoSim.py/dev.sh"
+#
+# Run both backend (FastAPI) and frontend (Vite) together:
+#   "/Users/akhileshbharatham/Documents/GitHub/PulmoSim.py/dev.sh"
+#
+# Optional custom ports (defaults: backend 8000, frontend 5173):
+#   PORT=9000 VITE_PORT=5174 /Users/akhileshbharatham/Documents/GitHub/PulmoSim.py/dev.sh
+#
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
