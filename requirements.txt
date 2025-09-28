@@ -1,0 +1,10 @@
+numpy>=1.24
+SimpleITK>=2.3
+nibabel>=5.1
+scikit-image>=0.22
+trimesh>=4.4
+tqdm>=4.66
+fastapi>=0.112
+uvicorn>=0.30
+python-multipart>=0.0.9
+
