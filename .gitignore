@@ -1,3 +1,9 @@
 .venv/
 lungs.stl
 data/
+*.stl
+subset1/
+out/
+*.gz
+*.tcia
+*.nii
