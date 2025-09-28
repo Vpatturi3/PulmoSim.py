@@ -121,6 +121,14 @@ export default function Home() {
     }
   }, [files, busy, onSubmit])
 
+  // Auto-process as soon as files are provided via drop or picker
+  useEffect(() => {
+    if (!busy && files.length > 0) {
+      // Fire and forget; navigation will move away on success
+      onSubmit()
+    }
+  }, [files, busy, onSubmit])
+
   const toggleSeeInside = () => setSeeInside(v => !v)
   const toggleAirways = () => setAirwaysVisible(v => !v)
   const toggleAirflow = () => setAirflowVisible(v => !v)

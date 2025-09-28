@@ -1,6 +1,22 @@
 .venv/
 lungs.stl
 data/
+<<<<<<< HEAD
 __pycache__/
 *.pyc
 frontend/.vite/
+=======
+<<<<<<< HEAD
+*.stl
+subset1/
+out/
+*.gz
+*.tcia
+*.nii
+data/
+=======
+__pycache__/
+*.pyc
+frontend/.vite/
+>>>>>>> 2520bc0 (Ignore build artifacts and pycache)
+>>>>>>> neel4
