@@ -6,3 +6,4 @@ python ct_to_mesh.py \
   --decimate 0.98 \
   --smooth-iters 2 \
   --repair-strong
+

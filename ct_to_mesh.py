@@ -389,8 +389,6 @@ def resample_isotropic(img, iso=1.0, interp=sitk.sitkLinear):
     return img_iso
 
 
-
-
 from skimage.morphology import ball, binary_closing, remove_small_objects
 from skimage.measure import label
 import numpy as np
@@ -489,6 +487,7 @@ def segment_lungs(img_iso,
 
 
 
+
 def segment_airway_seeded(img_iso, seed_zyx, low=-1024, high=-800, iters=2):
     """
     Very basic airway segmentation via seeded region growing around trachea.
@@ -554,11 +553,13 @@ def mask_to_mesh_stl(mask_itk, out_path, decimate_ratio=0.5, smooth_iters=0,
 
     mask_np = sitk.GetArrayFromImage(mask_itk)       # z,y,x
     spacing = mask_itk.GetSpacing()                  # (x,y,z)
+
     spacing_zyx = (spacing[2], spacing[1], spacing[0])
 
     if verbose:
         print(f"[mesh] marching cubes on mask of shape {mask_np.shape} with spacing (z,y,x)={spacing_zyx}")
 
+<
     verts, faces, _, _ = measure.marching_cubes(
         mask_np.astype(np.uint8), level=0.5, spacing=spacing_zyx
     )
@@ -596,10 +597,10 @@ def mask_to_mesh_stl(mask_itk, out_path, decimate_ratio=0.5, smooth_iters=0,
     mesh = repair_and_smooth_mesh(mesh, smooth_iters=int(smooth_iters),
                                   strong=bool(repair_strong), verbose=verbose)
 
+
     mesh.export(out_path)
     if verbose:
         print(f"[ok] wrote {out_path}  |  {len(mesh.vertices)} verts, {len(mesh.faces)} faces")
-
 
 
 def main():
@@ -749,8 +750,8 @@ def main():
             repair_strong=True
         )
 
-    print("[done]")
 
+    print("[done]")
 
 
 if __name__ == "__main__":
