@@ -7,3 +7,28 @@ out/
 *.gz
 *.tcia
 *.nii
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+.env
+
+# macOS
+.DS_Store
+
+# Virtual envs
+.venv/
+venv/
+
+# indexes, outputs, generated data
+rag_index/
+outputs/
+diagnosis.json
+
+# large data
+articles/
+*.pdf
+
+# secrets / credentials
+*.key
