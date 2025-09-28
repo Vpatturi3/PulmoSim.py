@@ -1,3 +1,6 @@
 .venv/
 lungs.stl
 data/
+__pycache__/
+*.pyc
+frontend/.vite/
