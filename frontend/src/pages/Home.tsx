@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import STLViewer from '../components/STLViewer'
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+import { getApiBase } from '../lib/api'
 
 function LungsLogo() {
   return (
@@ -102,8 +101,17 @@ export default function Home() {
       form.append('lung_hu_high', '-400')
       form.append('decimate', '0.9')
       form.append('airway_enabled', 'false')
-      const resp = await fetch(`${API_BASE}/process`, { method: 'POST', body: form })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const resp = await fetch(`${getApiBase()}/process`, { method: 'POST', body: form })
+      if (!resp.ok) {
+        let message = `HTTP ${resp.status}`
+        try {
+          const errJson = await resp.json()
+          if (errJson?.error) message = errJson.error
+        } catch (_) {
+          try { message = await resp.text() } catch (_) {}
+        }
+        throw new Error(message)
+      }
       const json = await resp.json()
       navigate('/results', { state: json })
     } catch (err: any) {
@@ -148,7 +156,7 @@ export default function Home() {
           <div className="viewer-panel" style={{ height: 720, borderRadius: 16, overflow: 'hidden', background: 'transparent', position: 'relative' }}>
             <div onClick={toggleSeeInside} style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }} />
             <STLViewer
-              src={`${API_BASE}/demo/longen`}
+              src={`${getApiBase()}/demo/longen`}
               airwaySrc={undefined}
               seeInside={seeInside}
               airwaysVisible={airwaysVisible}

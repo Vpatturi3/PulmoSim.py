@@ -86,6 +86,10 @@ body {
   padding: 10px 16px;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 3px 12px rgba(86,182,247,0.15);
+}
+.btn:hover {
+  filter: brightness(1.02);
 }
 
 .btn.secondary {
@@ -214,5 +218,36 @@ body {
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(100,210,255,0.25), rgba(100,210,255,0) 70%);
   filter: blur(1px);
+}
+
+.tabbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #212a3d;
+  background: rgba(18,24,38,0.55);
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+.tab {
+  background: #1a2336;
+  color: var(--text);
+  border: 1px solid #28324a;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tab.active {
+  background: linear-gradient(135deg, var(--accent), #56b6f7);
+  color: #061018;
+}
+.sidebar {
+  height: 80vh;
 }
 

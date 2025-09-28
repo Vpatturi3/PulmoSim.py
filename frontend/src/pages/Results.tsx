@@ -1,69 +1,65 @@
-import React, { useMemo, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import React, { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import STLViewer from '../components/STLViewer'
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
-
-function absolutize(url?: string | null): string | null {
-  if (!url) return null
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return `${API_BASE}${url}`
-}
-
-function STLMesh({ url, color = '#87CEEB', opacity = 1 }: { url: string, color?: string, opacity?: number }) {
-  const geomRef = useRef<THREE.BufferGeometry>(null)
-  const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
-
-  useMemo(async () => {
-    if (!url) return
-    const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js')
-    const loader = new STLLoader()
-    loader.load(url, (geom: THREE.BufferGeometry) => setGeometry(geom))
-  }, [url])
-
-  if (!geometry) return null
-  return (
-    <mesh>
-      <meshStandardMaterial color={color} opacity={opacity} transparent={opacity < 1} />
-      <primitive object={geometry} attach="geometry" ref={geomRef} />
-    </mesh>
-  )
-}
+import { absoluteApiUrl } from '../lib/api'
+import Tabs from '../components/Tabs'
+import ChatbotPanel from '../components/ChatbotPanel'
 
 export default function Results() {
   const { state } = useLocation() as any
-  const lungsUrlAbs = absolutize(state?.lungs_url)
-  const airwayUrlAbs = absolutize(state?.airway_url)
-  const meta: any = state?.meta
+  const lungsUrlAbs = absoluteApiUrl(state?.lungs_url as string | null)
+  const airwayUrlAbs = absoluteApiUrl(state?.airway_url as string | null)
+
+  const [activeTab, setActiveTab] = useState<'render' | 'deposition'>('render')
+  const [simulating, setSimulating] = useState(false)
+  const [simDone, setSimDone] = useState(false)
+
+  async function runSimulation() {
+    if (simulating) return
+    setSimulating(true)
+    await new Promise(res => setTimeout(res, 1200))
+    setSimulating(false)
+    setSimDone(true)
+    setActiveTab('deposition')
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>Results</h2>
-        <Link className="btn" to="/">← Back to Home</Link>
-      </div>
+    <div style={{ padding: 16 }}>
+      <Tabs active={activeTab} onChange={setActiveTab} onSimulate={runSimulation} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: 24, marginTop: 16 }}>
-        <div className="panel">
-          <h3 style={{ marginTop: 0 }}>Downloads</h3>
-          {lungsUrlAbs ? (
-            <p><a className="btn" href={lungsUrlAbs} download>Download lungs.stl</a></p>
-          ) : (
-            <p>No lungs STL found.</p>
-          )}
+      {activeTab === 'render' && (
+        <div className="panel" style={{ height: '80vh', padding: 0 }}>
           {airwayUrlAbs ? (
-            <p><a className="btn secondary" href={airwayUrlAbs} download>Download airway.stl</a></p>
+            <STLViewer src={airwayUrlAbs} />
           ) : (
-            <p>No airway STL.</p>
+            lungsUrlAbs && <STLViewer src={lungsUrlAbs} />
           )}
-          <h3>Processing details</h3>
-          <pre style={{ margin: 0 }}>{JSON.stringify(meta || {}, null, 2)}</pre>
         </div>
+      )}
 
-        <div className="panel" style={{ height: '75vh', padding: 0 }}>
-          {lungsUrlAbs && <STLViewer src={lungsUrlAbs} />}
+      {activeTab === 'deposition' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 16 }}>
+          <ChatbotPanel />
+          <div className="panel" style={{ height: '80vh' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ marginTop: 0 }}>Deposition graphs</h3>
+              <button className="btn secondary" disabled={simulating} onClick={runSimulation}>{simulating ? 'Running…' : 'Re-run Simulation'}</button>
+            </div>
+            {simDone ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ background: 'rgba(18,24,38,0.35)', border: '1px solid #22304a', borderRadius: 10, height: 280, display: 'grid', placeItems: 'center' }}>Bar chart placeholder</div>
+                <div style={{ background: 'rgba(18,24,38,0.35)', border: '1px solid #22304a', borderRadius: 10, height: 280, display: 'grid', placeItems: 'center' }}>Line chart placeholder</div>
+                <div style={{ background: 'rgba(18,24,38,0.35)', border: '1px solid #22304a', borderRadius: 10, height: 280, display: 'grid', placeItems: 'center' }}>Lobe-wise heatmap placeholder</div>
+                <div style={{ background: 'rgba(18,24,38,0.35)', border: '1px solid #22304a', borderRadius: 10, height: 280, display: 'grid', placeItems: 'center' }}>Dose-response placeholder</div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: '#a7b3c2' }}>
+                <div>{simulating ? 'Running simulation…' : 'Click Run Simulation to generate deposition graphs.'}</div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
