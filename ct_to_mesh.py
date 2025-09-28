@@ -25,9 +25,27 @@ def read_volume(input_path):
         try:
             series_ids = reader.GetGDCMSeriesIDs(input_path)
             if not series_ids:
-                raise RuntimeError("No DICOM series found in directory.")
-            series_files = reader.GetGDCMSeriesFileNames(input_path, series_ids[0])
-            reader.SetFileNames(series_files)
+                # Fallback: recursively collect likely DICOM files (skip xml/json/txt/etc.)
+                candidate_files = []
+                allowed_exts = {".dcm", ".dicom", ".ima", ""}
+                for root, _, files in os.walk(input_path):
+                    for fn in files:
+                        ext = os.path.splitext(fn)[1].lower()
+                        if ext in {".xml", ".json", ".txt", ".csv"}:
+                            continue
+                        if ext not in allowed_exts:
+                            # Some DICOMs have no extension – allow empty ext; otherwise skip
+                            continue
+                        fp = os.path.join(root, fn)
+                        candidate_files.append(fp)
+                if not candidate_files:
+                    raise RuntimeError("No DICOM series found in directory.")
+                # Sort by filename to maintain slice order heuristic
+                candidate_files = sorted(candidate_files)
+                reader.SetFileNames(candidate_files)
+            else:
+                series_files = reader.GetGDCMSeriesFileNames(input_path, series_ids[0])
+                reader.SetFileNames(series_files)
             img = reader.Execute()
             return img, "dicom"
         except Exception as e:
@@ -142,18 +160,21 @@ def mask_to_mesh_stl(mask_itk, out_path, decimate_ratio=0.5, smooth_iters=0, ver
     mesh.fix_normals()
 
     # Optional smoothing (Laplacian-like via Taubin needs VTK; skip here to keep deps light)
-    # Decimate (0.0=no faces left, 1.0=no decimation; so clamp between 0.1 and 0.95)
-    # Decimate safely: keep between 10%..99% of faces and never exceed current face count
+    # Decimate safely; use API available in installed trimesh
     n_faces = int(len(mesh.faces))
     r = float(decimate_ratio)
 
-    # If user asks for ~no decimation or the mesh is small, skip
-    if r >= 0.99 or n_faces < 2000:
-        pass
-    else:
-        r = float(np.clip(r, 0.10, 0.99))          # keep this fraction of faces
-        target = int(max(min(n_faces - 1, n_faces * r), 100))  # [100 .. n_faces-1]
-        mesh = mesh.simplify_quadratic_decimation(target)
+    if 0.1 <= r < 0.99 and n_faces >= 2000:
+        target = int(max(min(n_faces - 1, n_faces * r), 100))
+        try:
+            if hasattr(mesh, 'simplify_quadric_decimation'):
+                mesh = mesh.simplify_quadric_decimation(target)
+            elif hasattr(mesh, 'simplify_quadratic_decimation'):
+                mesh = mesh.simplify_quadratic_decimation(target)
+        except ModuleNotFoundError:
+            # Optional dependency (fast_simplification) not installed; skip decimation
+            if verbose:
+                print("[warn] decimation skipped (fast_simplification not installed)")
 
     # Ensure watertight if possible
     mesh.fill_holes()
