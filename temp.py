@@ -30,6 +30,38 @@ from skimage.morphology import ball, binary_closing, remove_small_objects
 from skimage.measure import label
 import numpy as np
 import SimpleITK as sitk
+import numpy as np, trimesh
+
+def make_seed_marker(img_iso, center_zyx, size_mm=20.0):
+    """
+    Big '+' plus a small sphere at the seed (z,y,x on RESAMPLED image).
+    size_mm controls the cross-arm length; thickness scales automatically.
+    """
+    sx, sy, sz = img_iso.GetSpacing()           # (x,y,z) mm/voxel
+    cz, cy, cx = [float(v) for v in center_zyx] # z,y,x indices
+    p = np.array([cx*sx, cy*sy, cz*sz], dtype=float)
+
+    arm = float(size_mm)
+    thk = max(1.0, arm * 0.12)                  # thicker so it’s visible
+
+    bars = [
+        trimesh.creation.box(extents=(arm, thk, thk)),  # X
+        trimesh.creation.box(extents=(thk, arm, thk)),  # Y
+        trimesh.creation.box(extents=(thk, thk, arm)),  # Z
+    ]
+    for b in bars:
+        b.apply_translation(p)
+
+    # little sphere “dot” in the middle
+    dot = trimesh.creation.icosphere(subdivisions=2, radius=max(arm * 0.15, 2.0))
+    dot.apply_translation(p)
+
+    m = trimesh.util.concatenate(bars + [dot])
+    m.remove_degenerate_faces(); m.remove_unreferenced_vertices(); m.fix_normals()
+    return m
+
+
+
 
 def segment_airway_tree(img_iso,
                         seed_zyx=None,
@@ -639,6 +671,10 @@ def main():
                     help="Clip center in RESAMPLED voxel indices (z y x). Default = mask COM.")
     ap.add_argument("--draw-circle", action="store_true",
                     help="Overlay a thin ring into the lung STL for visual guidance (requires --out and --radius-mm).")
+    ap.add_argument("--mark-seed", action="store_true",
+                    help="Overlay a small '+' marker at --airway-seed in the output STL.")
+    ap.add_argument("--mark-size-mm", type=float, default=4.0,
+                    help="Marker size in mm (length of each bar).")
 
     args = ap.parse_args()
 
@@ -748,6 +784,17 @@ def main():
             smooth_iters=2,
             repair_strong=True
         )
+    if args.airway_out and args.airway_seed and args.mark_seed:
+        base = trimesh.load(args.airway_out)
+        marker = make_seed_marker(
+            img_iso,
+            center_zyx=tuple(args.airway_seed),      # (z,y,x) on the resampled image
+            size_mm=float(args.mark_size_mm),
+            thickness_mm=max(0.6, float(args.mark_size_mm) * 0.2),
+        )
+        merged = trimesh.util.concatenate([base, marker])
+        merged.export(args.airway_out)
+        print(f"[ok] added seed marker at ZYX={tuple(args.airway_seed)} to {args.airway_out}")
 
     print("[done]")
 
