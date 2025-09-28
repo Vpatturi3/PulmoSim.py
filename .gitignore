@@ -1,9 +1,37 @@
+# Python
 .venv/
-lungs.stl
-data/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Large mesh and geometry files (>50MB)
 *.stl
-subset1/
-out/
+*.msh
+*.foam
 *.gz
 *.tcia
 *.nii
+
+# OpenFOAM case directories and mesh files
+*_Case/
+lungCase*/
+polyMesh/
+VTK/
+0/
+constant/
+system/
+processor*/
+
+# Data and results directories
+data/
+subset1/
+out/
+pipeline/results/
+results*/
+
+# Large temporary files
+*.tmp
+*.bak
+*.swp
+*.log
