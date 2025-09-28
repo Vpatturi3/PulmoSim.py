@@ -112,7 +112,7 @@ export default function Home() {
       setBusy(false)
     }
   }, [files, navigate])
-
+ 
   // Auto-process as soon as files are provided via drop or picker
   useEffect(() => {
     if (!busy && files.length > 0) {
