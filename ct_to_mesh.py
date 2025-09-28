@@ -343,16 +343,32 @@ def read_volume(input_path):
     For DICOM directories with multiple series, auto-pick the largest CT series.
     """
     if os.path.isdir(input_path):
+        # Assume DICOM series
+        reader = sitk.ImageSeriesReader()
         try:
-            best = _pick_best_series(input_path)
-            files = best["files"]
-            meta = best["meta"]
-            print(f"[dicom] picked series: {best['n']} slices | "
-                  f"Modality={meta['Modality']} | "
-                  f"Desc='{meta['SeriesDescription']}' | "
-                  f"SliceThickness={meta['SliceThickness']} | PixelSpacing={meta['PixelSpacing']}")
-            reader = sitk.ImageSeriesReader()
-            reader.SetFileNames(files)
+            series_ids = reader.GetGDCMSeriesIDs(input_path)
+            if not series_ids:
+                # Fallback: recursively collect likely DICOM files (skip xml/json/txt/etc.)
+                candidate_files = []
+                allowed_exts = {".dcm", ".dicom", ".ima", ""}
+                for root, _, files in os.walk(input_path):
+                    for fn in files:
+                        ext = os.path.splitext(fn)[1].lower()
+                        if ext in {".xml", ".json", ".txt", ".csv"}:
+                            continue
+                        if ext not in allowed_exts:
+                            # Some DICOMs have no extension – allow empty ext; otherwise skip
+                            continue
+                        fp = os.path.join(root, fn)
+                        candidate_files.append(fp)
+                if not candidate_files:
+                    raise RuntimeError("No DICOM series found in directory.")
+                # Sort by filename to maintain slice order heuristic
+                candidate_files = sorted(candidate_files)
+                reader.SetFileNames(candidate_files)
+            else:
+                series_files = reader.GetGDCMSeriesFileNames(input_path, series_ids[0])
+                reader.SetFileNames(series_files)
             img = reader.Execute()
             return img, "dicom"
         except Exception as e:
@@ -573,30 +589,27 @@ def mask_to_mesh_stl(mask_itk, out_path, decimate_ratio=0.5, smooth_iters=0,
     mesh.remove_unreferenced_vertices()
     mesh.fix_normals()
 
-    # Safe decimation (optional)
+    # Optional smoothing (Laplacian-like via Taubin needs VTK; skip here to keep deps light)
+    # Decimate safely; use API available in installed trimesh
     n_faces = int(len(mesh.faces))
-    r_keep = float(decimate_ratio)
-    if not (n_faces < 2000 or r_keep >= 0.999):
-        r_keep = float(np.clip(r_keep, 0.10, 0.99))
-        target_faces = int(np.clip(n_faces * r_keep, 100, n_faces - 1))
-        dec_fn = getattr(mesh, "simplify_quadratic_decimation", None) \
-                 or getattr(mesh, "simplify_quadric_decimation", None)
+    r = float(decimate_ratio)
+
+    if 0.1 <= r < 0.99 and n_faces >= 2000:
+        target = int(max(min(n_faces - 1, n_faces * r), 100))
         try:
-            if dec_fn is not None:
-                sig = inspect.signature(dec_fn)
-                if "face_count" in sig.parameters:
-                    mesh = dec_fn(face_count=target_faces)
-                elif "target_reduction" in sig.parameters:
-                    reduction = float(np.clip(1.0 - r_keep, 0.01, 0.90))
-                    mesh = dec_fn(target_reduction=reduction)
-        except Exception as e:
+            if hasattr(mesh, 'simplify_quadric_decimation'):
+                mesh = mesh.simplify_quadric_decimation(target)
+            elif hasattr(mesh, 'simplify_quadratic_decimation'):
+                mesh = mesh.simplify_quadratic_decimation(target)
+        except ModuleNotFoundError:
+            # Optional dependency (fast_simplification) not installed; skip decimation
             if verbose:
-                print(f"[warn] decimation failed ({e}); continuing without decimation.")
+                print("[warn] decimation skipped (fast_simplification not installed)")
 
-    # **New**: run topology repair + optional smoothing
-    mesh = repair_and_smooth_mesh(mesh, smooth_iters=int(smooth_iters),
-                                  strong=bool(repair_strong), verbose=verbose)
-
+    # Ensure watertight if possible
+    mesh.fill_holes()
+    if not mesh.is_watertight and verbose:
+        print("[warn] mesh not fully watertight; consider post-processing in MeshLab/Blender.")
 
     mesh.export(out_path)
     if verbose:
