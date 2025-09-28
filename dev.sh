@@ -37,8 +37,23 @@ trap cleanup INT TERM EXIT
 
 echo "Starting frontend on :$VITE_PORT (API http://localhost:$PORT) ..."
 cd "$ROOT_DIR/frontend"
-VITE_API_BASE="http://localhost:$PORT" npm run dev &
+# Ensure API base is set for Vite
+echo "VITE_API_BASE=http://localhost:$PORT" > .env
+
+# Install deps if vite is missing
+if [ ! -d node_modules ] || [ ! -x node_modules/.bin/vite ]; then
+  echo "Installing frontend dependencies..."
+  npm install --no-fund --no-audit
+fi
+
+# Launch Vite via npx so it works even if locally not installed
+npx vite --port "$VITE_PORT" --strictPort &
 FRONT_PID=$!
+
+# Try to open the browser (macOS)
+if command -v open >/dev/null 2>&1; then
+  (sleep 1 && open "http://localhost:$VITE_PORT") &
+fi
 
 wait
 
