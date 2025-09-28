@@ -7,4 +7,9 @@ tqdm>=4.66
 fastapi>=0.112
 uvicorn>=0.30
 python-multipart>=0.0.9
+matplotlib>=3.9
+faiss-cpu>=1.8
+pymupdf>=1.24
+pillow>=10.4
+google-generativeai>=0.7
 

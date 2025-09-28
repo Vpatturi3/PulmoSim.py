@@ -14,6 +14,17 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import numpy as np
+import json
+from datetime import datetime
+
+import matplotlib
+matplotlib.use("Agg")  # headless rendering
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
+import trimesh
+import subprocess
 
 # Local imports
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -232,6 +243,213 @@ async def run_local(
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
+
+def _simulate_deposition_from_stl(stl_path: str, out_dir: str):
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Load STL mesh
+    mesh = trimesh.load(stl_path, force='mesh')
+    if not isinstance(mesh, trimesh.Trimesh):
+        raise RuntimeError("STL did not contain a single mesh")
+    mesh.remove_unreferenced_vertices()
+
+    V = mesh.vertices.copy()
+    F = mesh.faces.copy()
+
+    # Normalize coordinates to [0,1] for scalar fields
+    mins = V.min(axis=0)
+    maxs = V.max(axis=0)
+    span = np.clip(maxs - mins, 1e-6, None)
+    Vn = (V - mins) / span
+
+    # Synthetic deposition fields per inhaler (proxy for real CFD)
+    # Favor inferior regions (low z) for MDI, mid-basal for DPI, diffuse for Nebulizer
+    z = Vn[:, 2]
+    y = Vn[:, 1]
+    x = Vn[:, 0]
+    mdi_scalar = np.clip(1.2 * (1.0 - z) ** 1.1, 0.0, 1.0)
+    dpi_scalar = np.clip(np.exp(-((z - 0.45) ** 2) / 0.02) * (0.6 + 0.4 * (1 - np.abs(x - 0.5))), 0.0, 1.0)
+    neb_scalar = np.clip(0.7 * (1.0 - 0.6 * z) * (0.8 + 0.2 * (1 - np.abs(y - 0.5))), 0.0, 1.0)
+
+    fields = {
+        "mdi": {"name": "Metered Dose Inhaler", "scalar": mdi_scalar, "cmap": "Oranges"},
+        "dpi": {"name": "Dry Powder Inhaler", "scalar": dpi_scalar, "cmap": "Blues"},
+        "neb": {"name": "Nebulizer", "scalar": neb_scalar, "cmap": "Greens"},
+    }
+
+    image_paths = {}
+    metrics = {}
+
+    for key, spec in fields.items():
+        scalars = spec["scalar"]
+        # Face-wise mean scalar
+        face_vals = scalars[F].mean(axis=1)
+        cmap = cm.get_cmap(spec["cmap"])  # type: ignore
+        colors = cmap((face_vals - face_vals.min()) / max(1e-8, (face_vals.max() - face_vals.min())))
+        # Slight greyscale base tint
+        base_alpha = 0.25
+        colors[:, 3] = np.clip(0.35 + 0.65 * (face_vals - face_vals.min()) / max(1e-8, (face_vals.max() - face_vals.min())), 0.35, 0.98)
+
+        fig = plt.figure(figsize=(6, 6), dpi=150)
+        ax = fig.add_subplot(111, projection='3d')
+        poly = Poly3DCollection(V[F], facecolors=colors, linewidths=0.05, edgecolors=(0, 0, 0, 0.05))
+        ax.add_collection3d(poly)
+        ax.auto_scale_xyz(V[:, 0], V[:, 1], V[:, 2])
+        ax.set_axis_off()
+        ax.view_init(elev=10, azim=-90)
+        ax.set_title(f"{spec['name']}\n", pad=8)
+
+        norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
+        sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+        sm.set_array([])
+        cb = fig.colorbar(sm, ax=ax, shrink=0.7, pad=0.02, orientation='horizontal')
+        cb.set_label('Deposition')
+
+        fig.tight_layout()
+        out_png = os.path.join(out_dir, f"{key}.png")
+        fig.savefig(out_png, transparent=False)
+        plt.close(fig)
+        image_paths[key] = out_png
+
+        # Metrics: mean scalar as total proxy
+        total = float(np.clip(face_vals.mean(), 0.0, 1.0))
+        metrics[key] = {"name": spec["name"], "total": total}
+
+    # Determine best (max total)
+    best_key = max(metrics.items(), key=lambda kv: kv[1]["total"])[0]
+
+    summary = {
+        "created": datetime.utcnow().isoformat() + "Z",
+        "stl": os.path.abspath(stl_path),
+        "images": {k: os.path.abspath(v) for k, v in image_paths.items()},
+        "metrics": metrics,
+        "best": best_key,
+    }
+    with open(os.path.join(out_dir, "summary.json"), "w") as f:
+        json.dump(summary, f, indent=2)
+    return summary
+
+
+@app.post("/simulate_deposition")
+async def simulate_deposition(
+    job_id: Optional[str] = Form(None),
+    lungs_stl: Optional[UploadFile] = File(None),
+):
+    try:
+        if lungs_stl is None and not job_id:
+            return JSONResponse(status_code=400, content={"error": "Provide either job_id or lungs_stl"})
+
+        if job_id:
+            out_dir = os.path.join(OUTPUT_ROOT, job_id)
+            stl_path = os.path.join(out_dir, "lungs.stl")
+            if not os.path.exists(stl_path):
+                return JSONResponse(status_code=404, content={"error": f"lungs.stl not found for job_id {job_id}"})
+        else:
+            # Save uploaded STL into a new job dir
+            job_id = str(uuid.uuid4())
+            out_dir = os.path.join(OUTPUT_ROOT, job_id)
+            os.makedirs(out_dir, exist_ok=True)
+            stl_path = os.path.join(out_dir, "lungs.stl")
+            with open(stl_path, "wb") as f:
+                shutil.copyfileobj(lungs_stl.file, f)
+
+        summary = _simulate_deposition_from_stl(stl_path, out_dir)
+        base = f"/files/{job_id}"
+        images_rel = {k: f"{base}/{k}.png" for k in summary["images"].keys()}
+        return {
+            "job_id": job_id,
+            "images": images_rel,
+            "metrics": summary["metrics"],
+            "best": summary["best"],
+        }
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+@app.post("/chatbot_answer")
+async def chatbot_answer(job_id: str = Form(...), q: Optional[str] = Form(None)):
+    try:
+        out_dir = os.path.join(OUTPUT_ROOT, job_id)
+        if not os.path.isdir(out_dir):
+            return JSONResponse(status_code=404, content={"error": "Unknown job_id"})
+
+        # Ensure deposition images exist
+        imgs = [os.path.join(out_dir, f) for f in ("mdi.png", "dpi.png", "neb.png")]
+        if not all(os.path.exists(p) for p in imgs):
+            return JSONResponse(status_code=400, content={"error": "Run /simulate_deposition first for this job_id"})
+
+        # If diagnosis.json missing, run the RAG pipeline now
+        diag_json = os.path.join(out_dir, "diagnosis.json")
+        if not os.path.exists(diag_json):
+            script = os.path.join(CURRENT_DIR, "run_rag.sh")
+            env = os.environ.copy()
+            env.setdefault("INDEX_DIR", os.path.join(CURRENT_DIR, "rag_db"))
+            env.setdefault("PAPERS_DIR", os.path.join(CURRENT_DIR, "articles"))
+            env["IMAGES_PATHS"] = ",".join(imgs)
+            env["OUT_JSON"] = diag_json
+            proc = subprocess.run(["bash", script], cwd=CURRENT_DIR, env=env, capture_output=True, text=True)
+            if proc.returncode != 0:
+                return JSONResponse(status_code=400, content={"error": proc.stderr or proc.stdout})
+
+        with open(diag_json, "r") as f:
+            diag = json.load(f)
+
+        # Also attempt to read summary for best inhaler label
+        best_id = None
+        best_name = None
+        summary_path = os.path.join(out_dir, "summary.json")
+        if os.path.exists(summary_path):
+            try:
+                summary = json.load(open(summary_path, "r"))
+                best_id = summary.get("best")
+                if best_id:
+                    best_name = summary.get("metrics", {}).get(best_id, {}).get("name")
+            except Exception:
+                pass
+
+        message = diag.get("diagnosis") or "Analysis generated."
+        if best_name:
+            message = f"Best inhaler from simulation: {best_name}.\n\n" + message
+        return {"message": message, "best_id": best_id, "best_name": best_name}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+@app.post("/rag_assess")
+async def rag_assess(
+    job_id: str = Form(...),
+    papers_dir: str = Form("./articles"),
+    top_k: int = Form(8),
+):
+    try:
+        out_dir = os.path.join(OUTPUT_ROOT, job_id)
+        if not os.path.isdir(out_dir):
+            return JSONResponse(status_code=404, content={"error": "Unknown job_id"})
+
+        # Expect three images from simulate_deposition
+        imgs = [os.path.join(out_dir, f) for f in ("mdi.png", "dpi.png", "neb.png")]
+        for p in imgs:
+            if not os.path.exists(p):
+                return JSONResponse(status_code=400, content={"error": "Run simulate_deposition first"})
+
+        # Invoke the RAG pipeline via run_rag.sh to keep parity with CLI
+        script = os.path.join(CURRENT_DIR, "run_rag.sh")
+        env = os.environ.copy()
+        env.setdefault("INDEX_DIR", os.path.join(CURRENT_DIR, "rag_db"))
+        env.setdefault("PAPERS_DIR", papers_dir)
+        env["IMAGES_PATHS"] = ",".join(imgs)
+        env["OUT_JSON"] = os.path.join(out_dir, "diagnosis.json")
+
+        # Non-interactive execution
+        proc = subprocess.run(["bash", script], cwd=CURRENT_DIR, env=env, capture_output=True, text=True)
+        if proc.returncode != 0:
+            return JSONResponse(status_code=400, content={"error": proc.stderr or proc.stdout})
+
+        with open(env["OUT_JSON"], "r") as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 if __name__ == "__main__":
     import uvicorn

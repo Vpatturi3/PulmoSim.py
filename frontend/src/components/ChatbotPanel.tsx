@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 
 type ChatMessage = { role: 'user' | 'assistant', content: string }
 
-export default function ChatbotPanel() {
+export default function ChatbotPanel({ jobId }: { jobId?: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'assistant', content: 'Hi! I\'m your PulmoSim assistant. Ask about deposition results, therapy options, or how the model works.' }
   ])
@@ -14,20 +14,35 @@ export default function ChatbotPanel() {
 
   async function onSend(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!input.trim() || busy) return
-    const userMsg: ChatMessage = { role: 'user', content: input.trim() }
+    const text = input.trim()
+    if (!text || busy) return
+    const userMsg: ChatMessage = { role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setBusy(true)
 
-    // Placeholder: simulate Gemini response. Integrate backend later.
-    await new Promise(res => setTimeout(res, 900))
-    const assistant: ChatMessage = {
-      role: 'assistant',
-      content: 'This is a placeholder Gemini response. Once the simulation backend returns deposition metrics, I\'ll summarize hotspots, compare lobe-level deposition, and suggest next steps.'
+    try {
+      if (!jobId) throw new Error('Missing job id')
+      const form = new FormData()
+      form.append('job_id', jobId)
+      if (text) form.append('q', text)
+      const resp = await fetch('/chatbot_answer', { method: 'POST', body: form })
+      if (!resp.ok) {
+        let message = `HTTP ${resp.status}`
+        try { const j = await resp.json(); if (j?.error) message = j.error } catch {}
+        throw new Error(message)
+      }
+      const json = await resp.json()
+      const assistant: ChatMessage = {
+        role: 'assistant',
+        content: json.message || 'Generated analysis.'
+      }
+      setMessages(prev => [...prev, assistant])
+    } catch (err: any) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message || String(err)}` }])
+    } finally {
+      setBusy(false)
     }
-    setMessages(prev => [...prev, assistant])
-    setBusy(false)
   }
 
   return (
@@ -51,7 +66,7 @@ export default function ChatbotPanel() {
         </div>
         <form onSubmit={onSend} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 8 }}>
           <input
-            placeholder="Ask about deposition or treatment..."
+            placeholder="Ask which inhaler worked best..."
             value={input}
             onChange={e => setInput(e.target.value)}
           />

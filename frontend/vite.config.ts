@@ -17,6 +17,21 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/simulate_deposition': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/chatbot_answer': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/rag_assess': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/demo': {
         target: 'http://localhost:8000',
         changeOrigin: true,
