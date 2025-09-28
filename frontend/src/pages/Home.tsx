@@ -172,7 +172,6 @@ export default function Home() {
           <div className="info-header">
             <div className="spark" aria-hidden="true" />
             <h2 style={{ margin: 0 }}>What PulmoSim does</h2>
-            <p className="lede">CT to interactive lungs – visualize, simulate, and compare therapies.</p>
           </div>
           <div className="info-grid">
             <div className="info-item">
@@ -214,11 +213,31 @@ export default function Home() {
               )}
             </div>
           </div>
-          <input id="fileInput" ref={inputRef} type="file" accept=".zip,.nii,.nii.gz,.dcm" multiple style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files || []))} />
+          <input
+            id="fileInput"
+            ref={inputRef}
+            type="file"
+            accept=".zip,.nii,.nii.gz,.dcm"
+            multiple
+            style={{ display: 'none' }}
+            onChange={e => {
+              const picked = Array.from(e.target.files || [])
+              setFiles(picked)
+            }}
+          />
           {error && <div style={{ color: '#ff8a8a', marginTop: 8 }}>{error}</div>}
         </div>
         
       </section>
+      {busy && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'grid', placeItems: 'center', zIndex: 9999 }}>
+          <div style={{ padding: 16, borderRadius: 12, background: '#0f172a', border: '1px solid #243044', color: '#e6edf3', minWidth: 220, textAlign: 'center' }}>
+            <div style={{ marginBottom: 8 }}>Processing your scan…</div>
+            <div style={{ width: 36, height: 36, margin: '0 auto', border: '3px solid #2b3a55', borderTopColor: '#64d2ff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
     </div>
   )
 }
