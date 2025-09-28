@@ -69,15 +69,13 @@ def _save_uploads_to_temp(uploaded_files: List[UploadFile]) -> Tuple[Optional[st
                 shutil.copyfileobj(uf.file, f)
             return dicom_dir, temp_root
 
-    # Multiple files → assume DICOM
+    # Multiple files → assume DICOM. Preserve all files uniquely to avoid overwrites
     dicom_dir = os.path.join(temp_root, "dicom_series")
     os.makedirs(dicom_dir, exist_ok=True)
-    for uf in uploaded_files:
-        # Some browsers send relative directory paths in filename when selecting folders
-        # Normalize and ensure we don't escape the target root
-        rel = os.path.normpath(uf.filename).lstrip(os.sep)
-        dst = os.path.join(dicom_dir, rel)
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
+    for idx, uf in enumerate(uploaded_files):
+        # Many browsers do not preserve relative paths in filename; avoid collisions
+        base = os.path.basename(uf.filename) or f"file_{idx:06d}"
+        dst = os.path.join(dicom_dir, f"{idx:06d}_{base}")
         with open(dst, "wb") as f:
             shutil.copyfileobj(uf.file, f)
     return dicom_dir, temp_root

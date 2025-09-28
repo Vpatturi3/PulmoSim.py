@@ -2,8 +2,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Center, useProgress, Html } from '@react-three/drei'
 import * as THREE from 'three'
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+import { getApiBase } from './lib/api'
 
 function Loader() {
   const { progress } = useProgress()
@@ -73,11 +72,20 @@ export default function App() {
         form.append('airway_seed_x', String(seed.x))
       }
 
-      const resp = await fetch(`${API_BASE}/process`, { method: 'POST', body: form })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const resp = await fetch(`${getApiBase()}/process`, { method: 'POST', body: form })
+      if (!resp.ok) {
+        let message = `HTTP ${resp.status}`
+        try {
+          const errJson = await resp.json()
+          if (errJson?.error) message = errJson.error
+        } catch (_) {
+          try { message = await resp.text() } catch (_) {}
+        }
+        throw new Error(message)
+      }
       const json = await resp.json()
-      setLungsUrl(`${API_BASE}${json.lungs_url}`)
-      setAirwayUrl(json.airway_url ? `${API_BASE}${json.airway_url}` : null)
+      setLungsUrl(`${getApiBase()}${json.lungs_url}`)
+      setAirwayUrl(json.airway_url ? `${getApiBase()}${json.airway_url}` : null)
       setMeta(json.meta)
     } catch (err: any) {
       setError(err.message || String(err))
