@@ -41,10 +41,28 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: frontend
-
-      - name: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages (action)
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: frontend/dist
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to GitHub Pages (fallback via git)
+        if: ${{ always() }}
+        run: |
+          set -e
+          echo "Deploy fallback: push frontend/dist to gh-pages"
+          ls -la frontend/dist || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Create an orphan branch and commit the contents of the dist folder
+          git checkout --orphan gh-pages || true
+          git rm -rf . || true
+          git --work-tree=frontend/dist add --all
+          if git --work-tree=frontend/dist commit -m "CI: deploy to gh-pages"; then
+            git push -f origin gh-pages
+          else
+            echo "Nothing to commit in frontend/dist or commit failed"
+          fi
+        shell: bash
