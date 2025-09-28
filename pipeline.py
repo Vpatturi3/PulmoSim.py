@@ -28,10 +28,10 @@ sys.path.insert(0, str(pipeline_dir))
 
 # Import pipeline components
 try:
-    from convert_to_foam import convert_stl_to_msh
-    from drug_delivery_presets import create_openfoam_cases
-    from comparative_heatmap_generator_fixed import ComparativeHeatmapGenerator
-    from results_manager import create_results_folder
+    from pipeline.convert_to_foam import convert_stl_to_msh
+    from pipeline.drug_delivery_presets import create_openfoam_cases
+    from pipeline.comparative_heatmap_generator_fixed import ComparativeHeatmapGenerator
+    from pipeline.results_manager import create_results_folder
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure all pipeline components are in the pipeline/ directory")
